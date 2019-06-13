@@ -17,7 +17,7 @@ entity vga_sync is
 		hsync	: out std_logic;					-- sincronismo horizontal
 		vsync 	: out std_logic;					-- sincronismo vertical
 		vidon 	: out std_logic;					-- habilitacion de salda de video
---		p_tick	: out std_logic;					-- 25 MHz tick
+--		p_tick	: out std_logic;					-- 25 MHz ticks
 		pixel_x : out std_logic_vector(9 downto 0);	-- posicion horizontal del pixel
 		pixel_y : out std_logic_vector(9 downto 0)	-- posicion vertical del pixel
 	);
