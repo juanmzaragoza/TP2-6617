@@ -6,7 +6,7 @@
 -- Modulos:
 --    vga_sync
 --    gen_pixels
---
+---
 ---------------------------------------------------------
 
 library ieee;
@@ -17,7 +17,7 @@ entity vga_ctrl is
 	port(
 		clk, rst: in std_logic;
 		--sw: in std_logic_vector (2 downto 0);
-		hsync , vsync : out std_logic;
+		hsync , vsync : out std_logic; 
 		rgb : out std_logic_vector(2 downto 0)
 		--pixel_x: out std_logic_vector(9 downto 0);
 		--pixel_y: out std_logic_vector(9 downto 0)
