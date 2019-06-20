@@ -24,7 +24,7 @@ use IEEE.STD_LOGIC_1164.ALL;
 
 -- Uncomment the following library declaration if using
 -- arithmetic functions with Signed or Unsigned values
---use IEEE.NUMERIC_STD.ALL;
+use IEEE.NUMERIC_STD.ALL;
 
 -- Uncomment the following library declaration if instantiating
 -- any Xilinx leaf cells in this code.
@@ -38,14 +38,12 @@ entity ctrl_top is
     );
     port(
         -- inputs
-		clk, rst: in std_logic;
-		rxd_pin: in std_logic; 		-- Uart input
+		clk_pin, rst_pin:         in std_logic;
+		rxd_pin:                  in std_logic; 		-- Uart input
 		-- outputs
-		txd_pin: out std_logic; 		-- Uart output
-		hsync , vsync : out std_logic; 
-		rgb : out std_logic_vector(2 downto 0);
-		pixel_x: out std_logic_vector(9 downto 0);
-		pixel_y: out std_logic_vector(9 downto 0)
+		txd_pin:                  out std_logic; 		-- Uart output
+		hsync_pin , vsync_pin :   out std_logic; 
+		rgb :                     out std_logic_vector(2 downto 0)
 	);
 end ctrl_top;
 
@@ -94,8 +92,8 @@ architecture Behavioral of ctrl_top is
     
     component video_tile_RAM is
         generic(
-            AW: integer; -- RAM con 2^AW posiciones
-            DW: integer
+            AW: integer := 13; -- RAM con 2^AW posiciones
+            DW: integer := 8
         );
         port(
             clk: in std_logic;
@@ -106,30 +104,45 @@ architecture Behavioral of ctrl_top is
             data_out: out std_logic_vector(DW-1 downto 0)
         );
     end component;
+    
+    component tile_number_calculator is
+        generic(
+            AW: integer := 13 -- para una RAM con 2^AW posiciones
+        );
+        port ( clk : in std_logic;
+               pixel_x: in std_logic_vector(9 downto 0);
+               pixel_y : in std_logic_vector(9 downto 0);
+               tile_number : out std_logic_vector(AW-1 downto 0));
+    end component;
 	
 	
-	-- signals
+	-- signals and constants
 	constant SIZE_ADDRESS_ROM_WORD: integer := 10;
-	constant SIZE_DATA_ROM_WORD: integer := 8;
+	constant SIZE_ADDRESS_RAM_WORD: integer := 13;
+	constant SIZE_DATA_ROM_WORD, SIZE_DATA_RAM_WORD: integer := 8;
 	
     signal rst_clk_rx: std_logic;
     
     -- rom signals
-    signal font_address: std_logic_vector(SIZE_ADDRESS_ROM_WORD-1 downto 0);
+    signal ram_address: std_logic_vector(SIZE_ADDRESS_RAM_WORD-1 downto 0);
+    signal row_char_addr: std_logic_vector(SIZE_ADDRESS_ROM_WORD-1 downto 0);
     signal line_address, line_font_ram: std_logic_vector(SIZE_DATA_ROM_WORD-1 downto 0);
     
     -- Between uart_rx and vga
 	signal rx_data, char_data: std_logic_vector(7 downto 0); 	-- Data output of uart_rx
 	signal rx_data_rdy, old_rx_data_rdy: std_logic;  				-- Data ready output of uart_rx
 	
+	-- VGA
+	signal pixel_x, pixel_y: std_logic_vector(9 downto 0);
+	
 begin
     
     vga_ctrl: entity work.vga_ctrl
 		port map(
-			clk	=> clk,
-			rst	=> rst,
-			hsync => hsync,
-			vsync => vsync,
+			clk	=> clk_pin,
+			rst	=> rst_pin,
+			hsync => hsync_pin,
+			vsync => vsync_pin,
 			rgb => rgb,
 			pixel_x => pixel_x,
 			pixel_y => pixel_y
@@ -137,9 +150,9 @@ begin
 	
 	meta_harden_rst_i0: meta_harden
 		port map(
-			clk_dst 	=> clk,
+			clk_dst 	=> clk_pin,
 			rst_dst 	=> '0',    		-- No reset on the hardener for reset!
-			signal_src 	=> rst,
+			signal_src 	=> rst_pin,
 			signal_dst 	=> rst_clk_rx
 		);
 		
@@ -149,7 +162,7 @@ begin
 			BAUD_RATE  	=> BAUD_RATE
 		)
 		port map(
-			clk_rx     	=> clk,
+			clk_rx     	=> clk_pin,
 			rst_clk_rx 	=> rst_clk_rx,
 	
 			rxd_i      	=> rxd_pin,
@@ -159,32 +172,53 @@ begin
 			rx_data    	=> rx_data,
 			frm_err    	=> open
 		);
-		
+    
+    tile_calculator: tile_number_calculator
+        generic map(
+            AW => SIZE_ADDRESS_RAM_WORD -- para una RAM con 2^AW posiciones
+        )
+        port map(
+            clk         => clk_pin,
+            pixel_x     => pixel_x,
+            pixel_y     => pixel_y,
+            tile_number => ram_address
+        );
+        
+    tile_RAM: video_tile_RAM
+        generic map(
+            AW =>       SIZE_ADDRESS_RAM_WORD, -- usar 2^13 = 8192 posiciones
+            DW =>       SIZE_DATA_RAM_WORD
+        )
+        port map(
+            clk                 => clk_pin,
+            write_enable        => rx_data_rdy, -- supongo que se pone en 1 cuando se recibio el dato => habilito RAM a escribir
+            addr                => ram_address, -- direccion donde se encuentra el dato a buscar
+            data_in             => rx_data, -- se escribe este dato cuando cuando write_enable = 1
+            reset_on_position   => 4799, -- al llegar a esta posicion, comienza a reescribirse
+            data_out            => line_font_ram -- dato leido de la RAM de la posicion addr
+        );
+    
+	-- direccion guardada en la RAM + posicion de la fila
+	row_char_addr <= line_font_ram&pixel_y(2 downto 0);
+	
     ROM: font_ROM
 	   generic map(
             AW =>       SIZE_ADDRESS_ROM_WORD, -- usar 2^10
             DW =>       SIZE_DATA_ROM_WORD
         )
         port map(
-            addrIn  =>  font_address,
+            addrIn  =>  row_char_addr,
             dataOut =>  line_address
         );
-        
-    tile_RAM: video_tile_RAM
-        port map(
-            clk                 => clk,
-            write_enable        => '1', -- TODO: habilitar escritura
-            addr                => "0000000000", --TODO: direccion donde se encuentra el dato a buscfar
-            data_in             => "0000000", --TODO: reemplazar por el dato a escribir (ASCII code)
-            reset_on_position   => 4799, -- al llegar a esta posicion, comienza a reescribirse
-            data_out            => line_font_ram
-        );
-		
+    
+    rgb <= (others => '1') when line_address(to_integer(unsigned(pixel_x(2 downto 0)))) = '1' 
+            else (others => '0');
+            
 	txd_pin<=rxd_pin;
 	
-	process(clk)
+	process(clk_pin)
 	begin
-		if rising_edge(clk) then
+		if rising_edge(clk_pin) then
 			if rst_clk_rx = '1' then
 				old_rx_data_rdy <= '0';
 				char_data       <= "00000000";
