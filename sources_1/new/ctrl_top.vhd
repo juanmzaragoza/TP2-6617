@@ -117,9 +117,9 @@ architecture Behavioral of ctrl_top is
 	
 	
 	-- signals and constants
-	constant SIZE_ADDRESS_ROM_WORD: integer := 10;
-	constant SIZE_ADDRESS_RAM_WORD: integer := 13;
-	constant SIZE_DATA_ROM_WORD, SIZE_DATA_RAM_WORD: integer := 8;
+	constant SIZE_ADDRESS_RAM_WORD: integer := 13; -- porque tenemos una pantalla de 4800 tiles (8191 posicion de memoria total)
+	constant SIZE_ADDRESS_ROM_WORD: integer := 10; -- 2^7 codigos ASCII x 2^3 filas por caracter
+	constant SIZE_DATA_ROM_WORD, SIZE_DATA_RAM_WORD: integer := 8; -- cada fila de cada caracter ocupa 8 bits
 	
     signal rst_clk_rx: std_logic;
     
