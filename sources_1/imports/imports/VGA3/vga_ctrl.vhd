@@ -18,9 +18,9 @@ entity vga_ctrl is
 		clk, rst: in std_logic;
 		--sw: in std_logic_vector (2 downto 0);
 		hsync , vsync : out std_logic; 
-		rgb : out std_logic_vector(2 downto 0)
-		--pixel_x: out std_logic_vector(9 downto 0);
-		--pixel_y: out std_logic_vector(9 downto 0)
+		rgb : out std_logic_vector(2 downto 0);
+		pixel_x: out std_logic_vector(9 downto 0);
+		pixel_y: out std_logic_vector(9 downto 0)
 	);
 
 end vga_ctrl;
@@ -30,7 +30,6 @@ architecture vga_ctrl_arch of vga_ctrl is
 	signal rgb_reg: std_logic_vector(2 downto 0);
 	signal video_on, clk_prescaler: std_logic;
 	signal pixel_x_aux, pixel_y_aux: std_logic_vector(9 downto 0);
-	signal pixel_x,pixel_y: std_logic_vector(9 downto 0);
 	signal sw:  std_logic_vector (2 downto 0) := "111";
 
 begin

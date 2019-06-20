@@ -26,12 +26,12 @@ begin
 		port map(
 			clk	=> clk_tb,
 			rst	=> rst_tb,
-			sw	=> sw_tb,
+			--sw	=> sw_tb,
 			hsync => hsync_tb,
 			vsync => vsync_tb,
-			rgb => rgb_tb,
-			pixel_x => pixel_x_tb,
-			pixel_y => pixel_y_tb
+			rgb => rgb_tb
+			--pixel_x => pixel_x_tb,
+			--pixel_y => pixel_y_tb
 		);
 		
 	
