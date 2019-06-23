@@ -119,14 +119,16 @@ architecture Behavioral of ctrl_top is
 	-- signals and constants
 	constant SIZE_ADDRESS_RAM_WORD: integer := 13; -- porque tenemos una pantalla de 4800 tiles (8191 posicion de memoria total)
 	constant SIZE_ADDRESS_ROM_WORD: integer := 10; -- 2^7 codigos ASCII x 2^3 filas por caracter
-	constant SIZE_DATA_ROM_WORD, SIZE_DATA_RAM_WORD: integer := 8; -- cada fila de cada caracter ocupa 8 bits
+	constant SIZE_DATA_ROM_WORD: integer := 8; -- cada fila de cada caracter ocupa 8 bits
+	constant SIZE_DATA_RAM_WORD: integer := 7; -- represento 2^7=128 ASCII codes
 	
     signal rst_clk_rx: std_logic;
     
     -- rom signals
     signal ram_address: std_logic_vector(SIZE_ADDRESS_RAM_WORD-1 downto 0);
     signal row_char_addr: std_logic_vector(SIZE_ADDRESS_ROM_WORD-1 downto 0);
-    signal line_address, line_font_ram: std_logic_vector(SIZE_DATA_ROM_WORD-1 downto 0);
+    signal line_address: std_logic_vector(SIZE_DATA_ROM_WORD-1 downto 0);
+    signal line_font_ram: std_logic_vector(SIZE_DATA_RAM_WORD-1 downto 0);
     
     -- Between uart_rx and vga
 	signal rx_data, char_data: std_logic_vector(7 downto 0); 	-- Data output of uart_rx
@@ -136,17 +138,6 @@ architecture Behavioral of ctrl_top is
 	signal pixel_x, pixel_y: std_logic_vector(9 downto 0);
 	
 begin
-    
-    vga_ctrl: entity work.vga_ctrl
-		port map(
-			clk	=> clk_pin,
-			rst	=> rst_pin,
-			hsync => hsync_pin,
-			vsync => vsync_pin,
-			rgb => rgb,
-			pixel_x => pixel_x,
-			pixel_y => pixel_y
-		);
 	
 	meta_harden_rst_i0: meta_harden
 		port map(
@@ -155,7 +146,8 @@ begin
 			signal_src 	=> rst_pin,
 			signal_dst 	=> rst_clk_rx
 		);
-		
+	
+	-- (1) se genera el dato de UART
 	uart_rx_i0: uart_rx
 		generic map(
 			CLOCK_RATE 	=> CLOCK_RATE,
@@ -173,6 +165,36 @@ begin
 			frm_err    	=> open
 		);
     
+    -- (2) guardo el dato en la memoria de video
+    -- (5) buscamos en RAM con el valor del tile (cuadricula) que nos devuelve el ASCII que habia en esa posicion (line_font_ram)
+    tile_RAM: video_tile_RAM
+        generic map(
+            AW =>       SIZE_ADDRESS_RAM_WORD, -- usar 2^13 = 8192 posiciones
+            DW =>       SIZE_DATA_RAM_WORD
+        )
+        port map(
+            clk                 => clk_pin,
+            write_enable        => rx_data_rdy, -- supongo que se pone en 1 cuando se recibio el dato => habilito RAM a escribir
+            addr                => ram_address, -- direccion donde se encuentra el dato a buscar
+            data_in             => rx_data(6 downto 0), -- se escribe este dato cuando cuando write_enable = 1
+            reset_on_position   => 4799, -- al llegar a esta posicion, comienza a reescribirse
+            data_out            => line_font_ram -- dato leido de la RAM de la posicion addr
+        );
+    
+    -- (3) por otra parte, se generan los pixeles y la senal de sincronismo
+    vga_ctrl: entity work.vga_ctrl
+		port map(
+			clk	=> clk_pin,
+			rst	=> rst_pin,
+			hsync => hsync_pin,
+			vsync => vsync_pin,
+			rgb => rgb,
+			pixel_x => pixel_x,
+			pixel_y => pixel_y
+		);
+    
+    -- (4) con los pixeles generados, calculamos cual es el tile (cuadricula) al que pertenece el pixel_x y pixel_y
+    -- devuelve una ram_address (0...4799) [memoria de video]
     tile_calculator: tile_number_calculator
         generic map(
             AW => SIZE_ADDRESS_RAM_WORD -- para una RAM con 2^AW posiciones
@@ -183,24 +205,14 @@ begin
             pixel_y     => pixel_y,
             tile_number => ram_address
         );
-        
-    tile_RAM: video_tile_RAM
-        generic map(
-            AW =>       SIZE_ADDRESS_RAM_WORD, -- usar 2^13 = 8192 posiciones
-            DW =>       SIZE_DATA_RAM_WORD
-        )
-        port map(
-            clk                 => clk_pin,
-            write_enable        => rx_data_rdy, -- supongo que se pone en 1 cuando se recibio el dato => habilito RAM a escribir
-            addr                => ram_address, -- direccion donde se encuentra el dato a buscar
-            data_in             => rx_data, -- se escribe este dato cuando cuando write_enable = 1
-            reset_on_position   => 4799, -- al llegar a esta posicion, comienza a reescribirse
-            data_out            => line_font_ram -- dato leido de la RAM de la posicion addr
-        );
     
 	-- direccion guardada en la RAM + posicion de la fila
+	-- (6) con el codigo ASCII en los 7 bits mas significativos de [row_char_addr] obtengo la direccion de ese caracter en la ROM
+	-- y con los 3 bits menos significativos obtenemos la fila del caracter en la ROM que los  tomamos  de  los  4  bits  menos 
+    -- significativos la fila  del píxel
 	row_char_addr <= line_font_ram&pixel_y(2 downto 0);
 	
+	-- (7) obtenemos los 8 pixeles de la fila del caracter que queremos [line_address]
     ROM: font_ROM
 	   generic map(
             AW =>       SIZE_ADDRESS_ROM_WORD, -- usar 2^10
@@ -211,8 +223,10 @@ begin
             dataOut =>  line_address
         );
     
+    -- (8) De estos  8 bits seleccionaremos el bit de la columna en que  estemos. Esta co lumna la obtendremos con los 3 bits menos 
+    -- significativos del píxel de la columna [pixel_x]
     rgb <= (others => '1') when line_address(to_integer(unsigned(pixel_x(2 downto 0)))) = '1' 
-            else (others => '0');
+            else "001";
             
 	txd_pin<=rxd_pin;
 	
