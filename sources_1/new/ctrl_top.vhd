@@ -67,13 +67,10 @@ architecture Behavioral of ctrl_top is
 		port(
 			-- Write side inputs
 			clk_rx: in std_logic;       				-- Clock input
-			rst_clk_rx: in std_logic;   				-- Active HIGH reset - synchronous to clk_rx
-							
+			rst_clk_rx: in std_logic;   				-- Active HIGH reset - synchronous to clk_rx					
 			rxd_i: in std_logic;        				-- RS232 RXD pin - Directly from pad
 			rxd_clk_rx: out std_logic;					-- RXD pin after synchronization to clk_rx
-		
-			rx_data: out std_logic_vector(7 downto 0);	-- 8 bit data output
-														--  - valid when rx_data_rdy is asserted
+			rx_data: out std_logic_vector(7 downto 0);	-- 8 bit data output -- valid when rx_data_rdy is asserted
 			rx_data_rdy: out std_logic;  				-- Ready signal for rx_data
 			frm_err: out std_logic       				-- The STOP bit was not detected	
 		);
@@ -114,6 +111,20 @@ architecture Behavioral of ctrl_top is
                pixel_y : in std_logic_vector(9 downto 0);
                tile_number : out std_logic_vector(AW-1 downto 0));
     end component;
+	
+	
+	component vga_ctrl is
+	port(
+		clk, rst: in std_logic;
+		--sw: in std_logic_vector (2 downto 0);
+		hsync , vsync : out std_logic; 
+		rgb : out std_logic_vector(2 downto 0);
+		pixel_x: out std_logic_vector(9 downto 0);
+		pixel_y: out std_logic_vector(9 downto 0)
+	);
+
+end component;
+	
 	
 	
 	-- signals and constants
@@ -182,20 +193,21 @@ begin
         );
     
     -- (3) por otra parte, se generan los pixeles y la senal de sincronismo
-    vga_ctrl: entity work.vga_ctrl
+    vga_ctrl1: vga_ctrl
 		port map(
 			clk	=> clk_pin,
 			rst	=> rst_pin,
 			hsync => hsync_pin,
 			vsync => vsync_pin,
-			rgb => rgb,
+			rgb => open,-- conectado anteriormente a rgb
 			pixel_x => pixel_x,
 			pixel_y => pixel_y
 		);
     
     -- (4) con los pixeles generados, calculamos cual es el tile (cuadricula) al que pertenece el pixel_x y pixel_y
     -- devuelve una ram_address (0...4799) [memoria de video]
-    tile_calculator: tile_number_calculator
+    
+	tile_calculator: tile_number_calculator
         generic map(
             AW => SIZE_ADDRESS_RAM_WORD -- para una RAM con 2^AW posiciones
         )
@@ -225,8 +237,10 @@ begin
     
     -- (8) De estos  8 bits seleccionaremos el bit de la columna en que  estemos. Esta co lumna la obtendremos con los 3 bits menos 
     -- significativos del píxel de la columna [pixel_x]
-    rgb <= (others => '1') when line_address(to_integer(unsigned(pixel_x(2 downto 0)))) = '1' 
-            else "001";
+    
+    
+        rgb <= (others => '1') when line_address(to_integer(unsigned(pixel_x(2 downto 0)))) = '1' 
+        else "001";
             
 	txd_pin<=rxd_pin;
 	
