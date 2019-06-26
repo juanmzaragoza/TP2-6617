@@ -188,7 +188,7 @@ begin
 			rst	=> rst_pin,
 			hsync => hsync_pin,
 			vsync => vsync_pin,
-			rgb => rgb,
+			rgb => open,
 			pixel_x => pixel_x,
 			pixel_y => pixel_y
 		);
