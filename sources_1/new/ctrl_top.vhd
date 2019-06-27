@@ -132,7 +132,7 @@ architecture Behavioral of ctrl_top is
     
     -- Between uart_rx and vga
 	signal rx_data, char_data: std_logic_vector(7 downto 0); 	-- Data output of uart_rx
-	signal rx_data_rdy, old_rx_data_rdy: std_logic;  				-- Data ready output of uart_rx
+	signal rx_data_rdy, old_rx_data_rdy, enable_write_ram: std_logic;  				-- Data ready output of uart_rx
 	
 	-- VGA
 	signal pixel_x, pixel_y: std_logic_vector(9 downto 0);
@@ -174,7 +174,7 @@ begin
         )
         port map(
             clk                 => clk_pin,
-            write_enable        => rx_data_rdy, -- supongo que se pone en 1 cuando se recibio el dato => habilito RAM a escribir
+            write_enable        => enable_write_ram, -- supongo que se pone en 1 cuando se recibio el dato => habilito RAM a escribir
             addr                => ram_address, -- direccion donde se encuentra el dato a buscar
             data_in             => char_data(6 downto 0), -- se escribe este dato cuando cuando write_enable = 1
             reset_on_position   => 4799, -- al llegar a esta posicion, comienza a reescribirse
@@ -234,6 +234,7 @@ begin
 	begin
 		if rising_edge(clk_pin) then
 			if rst_clk_rx = '1' then
+			    enable_write_ram <= '0';
 				old_rx_data_rdy <= '0';
 				char_data       <= "00000000";
 			else
@@ -241,6 +242,7 @@ begin
 				old_rx_data_rdy <= rx_data_rdy;
 				-- If rising edge of rx_data_rdy, capture rx_data
 				if (rx_data_rdy = '1' and old_rx_data_rdy = '0') then
+				    enable_write_ram <= '1';
 					char_data <= rx_data;	
 				end if;
 			end if;	-- if !rst
