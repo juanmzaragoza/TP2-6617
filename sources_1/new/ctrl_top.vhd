@@ -176,7 +176,7 @@ begin
             clk                 => clk_pin,
             write_enable        => rx_data_rdy, -- supongo que se pone en 1 cuando se recibio el dato => habilito RAM a escribir
             addr                => ram_address, -- direccion donde se encuentra el dato a buscar
-            data_in             => rx_data(6 downto 0), -- se escribe este dato cuando cuando write_enable = 1
+            data_in             => char_data(6 downto 0), -- se escribe este dato cuando cuando write_enable = 1
             reset_on_position   => 4799, -- al llegar a esta posicion, comienza a reescribirse
             data_out            => line_font_ram -- dato leido de la RAM de la posicion addr
         );
