@@ -47,31 +47,30 @@ entity video_tile_RAM is
 end video_tile_RAM;
 
 architecture Behavioral of video_tile_RAM is
-    type rom_type is array (0 to 2**AW-1) of std_logic_vector(DW-1 downto 0);
+    type rom_type is array (0 to (2**AW)-1) of std_logic_vector(DW-1 downto 0);
     signal RAM: rom_type := (others=>(others=>'0'));
-    signal next_position: integer := 0;
+    signal actual_position, next_position: integer := 0;
 begin
     
     setRegA: process (clk)
-        variable actual_position: integer;
 	begin
 		if rising_edge(clk) then
 		  -- Write to ram
 		  if(write_enable = '1') then
             if next_position = reset_on_position then
-                actual_position := 0;
+                actual_position <= 0;
                 RAM(actual_position) <= data_in;
                 next_position <= actual_position + 1;
             else
-                actual_position := next_position;
+                actual_position <= next_position;
                 RAM(actual_position) <= data_in;
                 next_position <= actual_position + 1;
 		    end if;
 		  end if;
-		  -- Read from it
-		  data_out <= RAM(to_integer(unsigned(addr)));
 
 		end if;
 	end process;
-
+    
+	-- Read from it
+    data_out <= RAM(to_integer(unsigned(addr)));
 end Behavioral;

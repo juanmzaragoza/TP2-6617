@@ -176,7 +176,9 @@ begin
             clk                 => clk_pin,
             write_enable        => enable_write_ram, -- supongo que se pone en 1 cuando se recibio el dato => habilito RAM a escribir
             addr                => ram_address, -- direccion donde se encuentra el dato a buscar
-            data_in             => char_data(6 downto 0), -- se escribe este dato cuando cuando write_enable = 1
+            --TODO: descomentar esto y comentar la de abajo
+            --data_in             => char_data(6 downto 0), -- se escribe este dato cuando cuando write_enable = 1
+            data_in             => "1000010",
             reset_on_position   => 4799, -- al llegar a esta posicion, comienza a reescribirse
             data_out            => line_font_ram -- dato leido de la RAM de la posicion addr
         );
@@ -210,6 +212,7 @@ begin
 	-- (6) con el codigo ASCII en los 7 bits mas significativos de [row_char_addr] obtengo la direccion de ese caracter en la ROM
 	-- y con los 3 bits menos significativos obtenemos la fila del caracter en la ROM que los  tomamos  de  los  4  bits  menos 
     -- significativos la fila  del píxel
+	--row_char_addr <= line_font_ram&pixel_y(2 downto 0);
 	row_char_addr <= line_font_ram&pixel_y(2 downto 0);
 	
 	-- (7) obtenemos los 8 pixeles de la fila del caracter que queremos [line_address]
@@ -226,7 +229,7 @@ begin
     -- (8) De estos  8 bits seleccionaremos el bit de la columna en que  estemos. Esta co lumna la obtendremos con los 3 bits menos 
     -- significativos del píxel de la columna [pixel_x]
     rgb <= (others => '1') when line_address(to_integer(unsigned(pixel_x(2 downto 0)))) = '1' 
-            else "001";
+            else "000";
             
 	txd_pin<=rxd_pin;
 	
@@ -243,7 +246,9 @@ begin
 				-- If rising edge of rx_data_rdy, capture rx_data
 				if (rx_data_rdy = '1' and old_rx_data_rdy = '0') then
 				    enable_write_ram <= '1';
-					char_data <= rx_data;	
+					char_data <= rx_data;
+				else
+				    enable_write_ram <= '0';
 				end if;
 			end if;	-- if !rst
 		end if;
