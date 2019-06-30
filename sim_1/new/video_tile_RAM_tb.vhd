@@ -39,7 +39,7 @@ architecture Behavioral of video_tile_RAM_tb is
     
     signal clk_tb, enable_write_ram_tb: std_logic := '0';
     signal ram_address: std_logic_vector(13-1 downto 0) := (others => '0');
-    signal line_font_ram: std_logic_vector(7-1 downto 0);
+    signal read_data_out: std_logic_vector(7-1 downto 0);
     signal data_in: std_logic_vector(7-1 downto 0) := (others => '0');
     
     signal ii,jj: integer := 0;
@@ -60,23 +60,28 @@ begin
             addr                => ram_address, -- direccion donde se encuentra el dato a buscar
             data_in             => data_in,
             reset_on_position   => 4799, -- al llegar a esta posicion, comienza a reescribirse
-            data_out            => line_font_ram -- dato leido de la RAM de la posicion addr
+            data_out            => read_data_out -- dato leido de la RAM de la posicion addr
         );
         
     process(clk_tb)
-        variable i, j: integer := 0;
+        variable i, j, count: integer := 0;
 	begin
 		if rising_edge(clk_tb) and enable_write_ram_tb = '1' then
 			
-			if i = 4799 then
+			--if count = 4799 then -- cuento hasta 4799 para no pisar los datos
 			 ram_address <= std_logic_vector(to_unsigned(j ,ram_address'length));
 			 j := j + 1;
 			 jj <= j;
-			else
+			--else
 			 data_in <= std_logic_vector(to_unsigned(i ,data_in'length));
-			 i := i + 1;
+			 if i = 127 then
+			     i := 0;
+			 else
+			     i := i + 1;
+			 end if;
 			 ii <= i;
-			end if;
+			 count := count + 1;
+			--end if;
 			
 			
 --			assert to_integer(unsigned(line_font_ram)) = to_integer(unsigned("1000010")) report
