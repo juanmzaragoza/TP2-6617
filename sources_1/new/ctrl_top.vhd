@@ -67,10 +67,13 @@ architecture Behavioral of ctrl_top is
 		port(
 			-- Write side inputs
 			clk_rx: in std_logic;       				-- Clock input
-			rst_clk_rx: in std_logic;   				-- Active HIGH reset - synchronous to clk_rx					
+			rst_clk_rx: in std_logic;   				-- Active HIGH reset - synchronous to clk_rx
+							
 			rxd_i: in std_logic;        				-- RS232 RXD pin - Directly from pad
 			rxd_clk_rx: out std_logic;					-- RXD pin after synchronization to clk_rx
-			rx_data: out std_logic_vector(7 downto 0);	-- 8 bit data output -- valid when rx_data_rdy is asserted
+		
+			rx_data: out std_logic_vector(7 downto 0);	-- 8 bit data output
+														--  - valid when rx_data_rdy is asserted
 			rx_data_rdy: out std_logic;  				-- Ready signal for rx_data
 			frm_err: out std_logic       				-- The STOP bit was not detected	
 		);
@@ -102,6 +105,7 @@ architecture Behavioral of ctrl_top is
         );
     end component;
     
+	
     component tile_number_calculator is
         generic(
             AW: integer := 13 -- para una RAM con 2^AW posiciones
@@ -122,10 +126,16 @@ architecture Behavioral of ctrl_top is
 		pixel_x: out std_logic_vector(9 downto 0);
 		pixel_y: out std_logic_vector(9 downto 0)
 	);
+	end component;
 
-end component;
 	
-	
+	component Prescaler is
+    Port ( clk_in : in STD_LOGIC;
+           rst : in STD_LOGIC;
+           N1 : in integer;
+--           N1 : in std_logic_vector(3 downto 0);
+           clk_1 : out STD_LOGIC);
+    end component;
 	
 	-- signals and constants
 	constant SIZE_ADDRESS_RAM_WORD: integer := 13; -- porque tenemos una pantalla de 4800 tiles (8191 posicion de memoria total)
@@ -143,16 +153,24 @@ end component;
     
     -- Between uart_rx and vga
 	signal rx_data, char_data: std_logic_vector(7 downto 0); 	-- Data output of uart_rx
-	signal rx_data_rdy, old_rx_data_rdy: std_logic;  				-- Data ready output of uart_rx
+	signal rx_data_rdy, old_rx_data_rdy, enable_write_ram,clk_prescaler: std_logic;  				-- Data ready output of uart_rx
 	
 	-- VGA
 	signal pixel_x, pixel_y: std_logic_vector(9 downto 0);
 	
 begin
-	
+		clk_prescaler: prescaler
+        port map(
+           clk_in => clk_pin,
+           rst => '0',
+           N1 =>  5,
+--           N1 : in std_logic_vector(3 downto 0);
+           clk_1 => clk_prescaler
+           );
+           
 	meta_harden_rst_i0: meta_harden
 		port map(
-			clk_dst 	=> clk_pin,
+			clk_dst 	=> clk_prescaler,
 			rst_dst 	=> '0',    		-- No reset on the hardener for reset!
 			signal_src 	=> rst_pin,
 			signal_dst 	=> rst_clk_rx
@@ -165,7 +183,7 @@ begin
 			BAUD_RATE  	=> BAUD_RATE
 		)
 		port map(
-			clk_rx     	=> clk_pin,
+			clk_rx     	=> clk_prescaler,
 			rst_clk_rx 	=> rst_clk_rx,
 	
 			rxd_i      	=> rxd_pin,
@@ -184,35 +202,36 @@ begin
             DW =>       SIZE_DATA_RAM_WORD
         )
         port map(
-            clk                 => clk_pin,
-            write_enable        => rx_data_rdy, -- supongo que se pone en 1 cuando se recibio el dato => habilito RAM a escribir
+            clk                 => clk_prescaler,
+            write_enable        => enable_write_ram, -- supongo que se pone en 1 cuando se recibio el dato => habilito RAM a escribir
             addr                => ram_address, -- direccion donde se encuentra el dato a buscar
-            data_in             => rx_data(6 downto 0), -- se escribe este dato cuando cuando write_enable = 1
+            --TODO: descomentar esto y comentar la de abajo
+            --data_in             => char_data(6 downto 0), -- se escribe este dato cuando cuando write_enable = 1
+            data_in             => "1000010",
             reset_on_position   => 4799, -- al llegar a esta posicion, comienza a reescribirse
             data_out            => line_font_ram -- dato leido de la RAM de la posicion addr
         );
     
     -- (3) por otra parte, se generan los pixeles y la senal de sincronismo
-    vga_ctrl1: vga_ctrl
+    vga_ctrll:vga_ctrl
 		port map(
-			clk	=> clk_pin,
+			clk	=> clk_prescaler,
 			rst	=> rst_pin,
 			hsync => hsync_pin,
 			vsync => vsync_pin,
-			rgb => open,-- conectado anteriormente a rgb
+			rgb => open,
 			pixel_x => pixel_x,
 			pixel_y => pixel_y
 		);
     
     -- (4) con los pixeles generados, calculamos cual es el tile (cuadricula) al que pertenece el pixel_x y pixel_y
     -- devuelve una ram_address (0...4799) [memoria de video]
-    
-	tile_calculator: tile_number_calculator
+    tile_calculator: tile_number_calculator
         generic map(
             AW => SIZE_ADDRESS_RAM_WORD -- para una RAM con 2^AW posiciones
         )
         port map(
-            clk         => clk_pin,
+            clk         => clk_prescaler,
             pixel_x     => pixel_x,
             pixel_y     => pixel_y,
             tile_number => ram_address
@@ -222,6 +241,7 @@ begin
 	-- (6) con el codigo ASCII en los 7 bits mas significativos de [row_char_addr] obtengo la direccion de ese caracter en la ROM
 	-- y con los 3 bits menos significativos obtenemos la fila del caracter en la ROM que los  tomamos  de  los  4  bits  menos 
     -- significativos la fila  del píxel
+	--row_char_addr <= line_font_ram&pixel_y(2 downto 0);
 	row_char_addr <= line_font_ram&pixel_y(2 downto 0);
 	
 	-- (7) obtenemos los 8 pixeles de la fila del caracter que queremos [line_address]
@@ -237,17 +257,16 @@ begin
     
     -- (8) De estos  8 bits seleccionaremos el bit de la columna en que  estemos. Esta co lumna la obtendremos con los 3 bits menos 
     -- significativos del píxel de la columna [pixel_x]
-    
-    
-        rgb <= (others => '1') when line_address(to_integer(unsigned(pixel_x(2 downto 0)))) = '1' 
-        else "001";
+    rgb <= (others => '1') when line_address(to_integer(unsigned(pixel_x(2 downto 0)))) = '1' 
+            else "000";
             
 	txd_pin<=rxd_pin;
 	
-	process(clk_pin)
+	process(clk_prescaler)
 	begin
-		if rising_edge(clk_pin) then
+		if rising_edge(clk_prescaler) then
 			if rst_clk_rx = '1' then
+			    enable_write_ram <= '0';
 				old_rx_data_rdy <= '0';
 				char_data       <= "00000000";
 			else
@@ -255,7 +274,10 @@ begin
 				old_rx_data_rdy <= rx_data_rdy;
 				-- If rising edge of rx_data_rdy, capture rx_data
 				if (rx_data_rdy = '1' and old_rx_data_rdy = '0') then
-					char_data <= rx_data;	
+				    enable_write_ram <= '1';
+					char_data <= rx_data;
+				else
+				    enable_write_ram <= '0';
 				end if;
 			end if;	-- if !rst
 		end if;

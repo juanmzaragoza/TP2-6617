@@ -49,9 +49,10 @@ begin
 	begin
 		if rising_edge(clk) then
 			tile_number_aux <= 80 * to_integer(unsigned(pixel_y(9 downto 3))) + to_integer(unsigned(pixel_x(9 downto 3))); -- divido por 8
+			tile_number <= std_logic_vector(to_unsigned(tile_number_aux, tile_number'length));
+
 		end if;
 	end process;
 	
-	tile_number <= std_logic_vector(to_unsigned(tile_number_aux, tile_number'length));
 	
 end Behavioral;
