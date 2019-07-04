@@ -34,7 +34,7 @@ use IEEE.NUMERIC_STD.ALL;
 entity ctrl_top is
     generic(
         BAUD_RATE: integer := 115200;   
-        CLOCK_RATE: integer := 50E6
+        CLOCK_RATE: integer := 125E6
     );
     port(
         -- inputs
@@ -176,9 +176,7 @@ begin
             clk                 => clk_pin,
             write_enable        => enable_write_ram, -- supongo que se pone en 1 cuando se recibio el dato => habilito RAM a escribir
             addr                => ram_address, -- direccion donde se encuentra el dato a buscar
-            --TODO: descomentar esto y comentar la de abajo
-            --data_in             => char_data(6 downto 0), -- se escribe este dato cuando cuando write_enable = 1
-            data_in             => "1000010",
+            data_in             => char_data(6 downto 0), -- se escribe este dato cuando cuando write_enable = 1
             reset_on_position   => 4799, -- al llegar a esta posicion, comienza a reescribirse
             data_out            => line_font_ram -- dato leido de la RAM de la posicion addr
         );
@@ -228,7 +226,7 @@ begin
     
     -- (8) De estos  8 bits seleccionaremos el bit de la columna en que  estemos. Esta co lumna la obtendremos con los 3 bits menos 
     -- significativos del píxel de la columna [pixel_x]
-    rgb <= (others => '1') when line_address(to_integer(unsigned(pixel_x(2 downto 0)))) = '1' 
+    rgb <= (others => '1') when line_address(8-to_integer(unsigned(pixel_x(2 downto 0)))) = '1' 
             else "000";
             
 	txd_pin<=rxd_pin;

@@ -48,7 +48,7 @@ begin
     process(clk)
 	begin
 		if rising_edge(clk) then
-			tile_number_aux <= 80 * to_integer(unsigned(pixel_x(9 downto 3))) + to_integer(unsigned(pixel_y(9 downto 3))); -- divido por 8
+			tile_number_aux <= 80 * to_integer(unsigned(pixel_y(9 downto 3))) + to_integer(unsigned(pixel_x(9 downto 3))); -- divido por 8
 		end if;
 	end process;
 	
