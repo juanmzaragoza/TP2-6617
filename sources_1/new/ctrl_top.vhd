@@ -159,7 +159,7 @@ architecture Behavioral of ctrl_top is
 	signal pixel_x, pixel_y: std_logic_vector(9 downto 0);
 	
 begin
-		clk_prescaler: prescaler
+		clk_prescalerr: prescaler
         port map(
            clk_in => clk_pin,
            rst => '0',
